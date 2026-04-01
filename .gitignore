@@ -173,3 +173,10 @@ logs/
 .env.local
 .env.*.local
 secrets.json
+
+node_modules/
+dist/
+build/
+*.log
+*.lock
+*.tsbuildinfo

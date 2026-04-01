@@ -1,0 +1,10 @@
+{
+  "components": ["Button", "Theme", "Modal"],
+  "standards": ["UI-Consistency", "Accessibility"],
+  "dependencies": [
+    ["Button", "Theme"],
+    ["Modal", "Button"],
+    ["Button", "UI-Consistency"],
+    ["Button", "Accessibility"]
+  ]
+}

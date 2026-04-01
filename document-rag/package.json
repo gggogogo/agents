@@ -1,0 +1,42 @@
+{
+  "name": "document-rag",
+  "version": "1.0.0",
+  "description": "SDK Documentation RAG System (Node.js + TypeScript)",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/api/main.ts",
+    "start": "tsx src/api/main.ts",
+    "index": "tsx src/cli/index-docs.ts",
+    "mcp": "tsx src/mcp/server.ts",
+    "mcp:http": "tsx src/mcp/server.ts --http --port 3002",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@koa/router": "^15.3.1",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@qdrant/js-client-rest": "^1.17.0",
+    "commander": "^14.0.3",
+    "dotenv": "^17.3.1",
+    "glob": "^13.0.6",
+    "koa": "^3.1.2",
+    "koa-bodyparser": "^4.4.1",
+    "openai": "^6.27.0",
+    "uuid": "^13.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/koa": "^3.0.1",
+    "@types/koa-bodyparser": "^4.3.13",
+    "@types/koa__router": "^12.0.5",
+    "@types/node": "^25.4.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

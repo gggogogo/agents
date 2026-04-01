@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Page Agent Demo — 项目管理系统</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --bg: #f1f5f9;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --muted: #64748b;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Top Nav ── */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .nav-logo { font-weight: 700; font-size: 18px; color: var(--primary); letter-spacing: -.5px; }
+    .nav-links { display: flex; gap: 4px; }
+    .nav-link {
+      padding: 6px 14px; border-radius: 8px; font-size: 14px; font-weight: 500;
+      cursor: pointer; color: var(--muted); border: none; background: none;
+      transition: background .15s, color .15s;
+    }
+    .nav-link:hover, .nav-link.active { background: #ede9fe; color: var(--primary); }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--primary); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+    .badge {
+      background: var(--danger); color: #fff;
+      border-radius: 999px; font-size: 11px; font-weight: 700;
+      padding: 1px 6px;
+    }
+
+    /* ── Layout ── */
+    .layout { display: flex; min-height: calc(100vh - 56px); }
+    .sidebar {
+      width: 220px; background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 20px 12px; flex-shrink: 0;
+    }
+    .sidebar-section { margin-bottom: 24px; }
+    .sidebar-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 0 8px; margin-bottom: 6px; }
+    .sidebar-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; border-radius: 8px; font-size: 14px; cursor: pointer;
+      color: var(--text); font-weight: 500; transition: background .15s;
+    }
+    .sidebar-item:hover { background: var(--bg); }
+    .sidebar-item.active { background: #ede9fe; color: var(--primary); }
+    .sidebar-item .icon { font-size: 16px; }
+    .sidebar-count { margin-left: auto; background: var(--border); border-radius: 999px; font-size: 11px; padding: 1px 7px; color: var(--muted); }
+
+    .main { flex: 1; padding: 28px 32px; overflow-y: auto; }
+
+    /* ── Stats ── */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px 20px;
+    }
+    .stat-label { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+    .stat-value { font-size: 28px; font-weight: 800; line-height: 1; }
+    .stat-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .stat-up { color: var(--success); }
+    .stat-down { color: var(--danger); }
+
+    /* ── Toolbar ── */
+    .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+    .toolbar-left { display: flex; align-items: center; gap: 8px; flex: 1; }
+    .search-input {
+      padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 14px; width: 240px; outline: none; transition: border .15s;
+    }
+    .search-input:focus { border-color: var(--primary); }
+    select.filter-select {
+      padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 14px; background: var(--surface); color: var(--text); outline: none; cursor: pointer;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 600;
+      cursor: pointer; border: none; transition: background .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-outline { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn-outline:hover { background: var(--bg); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-sm { padding: 5px 11px; font-size: 12px; }
+
+    /* ── Table ── */
+    .table-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .table-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .table-title { font-size: 15px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left; padding: 10px 16px; font-size: 12px; font-weight: 700;
+      color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+      background: #f8fafc; border-bottom: 1px solid var(--border);
+    }
+    td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+    .task-name { font-weight: 600; }
+    .task-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .priority-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    }
+    .priority-high { background: #fee2e2; color: #b91c1c; }
+    .priority-mid  { background: #fef3c7; color: #92400e; }
+    .priority-low  { background: #dcfce7; color: #166534; }
+
+    .status-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    }
+    .status-todo { background: var(--bg); color: var(--muted); }
+    .status-doing { background: #dbeafe; color: #1d4ed8; }
+    .status-done { background: #dcfce7; color: #15803d; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    .assignee { display: flex; align-items: center; gap: 6px; }
+    .mini-avatar {
+      width: 24px; height: 24px; border-radius: 50%; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; color: #fff;
+    }
+
+    .action-btns { display: flex; gap: 6px; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4);
+      z-index: 200; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); border-radius: 16px; padding: 28px 28px 24px;
+      width: 480px; max-width: 95vw; box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    }
+    .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+    input[type="text"], input[type="date"], textarea, select.form-select {
+      width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 14px; outline: none; font-family: inherit; transition: border .15s;
+    }
+    input[type="text"]:focus, input[type="date"]:focus,
+    textarea:focus, select.form-select:focus { border-color: var(--primary); }
+    textarea { resize: vertical; min-height: 72px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+
+    /* ── Members panel ── */
+    .members { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 20px; }
+    .member-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px; display: flex; align-items: center; gap: 10px;
+    }
+    .member-avatar { width: 36px; height: 36px; border-radius: 50%; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; color: #fff; }
+    .member-name { font-size: 14px; font-weight: 600; }
+    .member-role { font-size: 12px; color: var(--muted); }
+
+    /* ── Tab nav ── */
+    .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 24px; }
+    .tab { padding: 8px 18px; font-size: 14px; font-weight: 600; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color .15s, border-color .15s; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Settings form ── */
+    .settings-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px; margin-bottom: 16px; max-width: 600px;
+    }
+    .settings-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-label { font-size: 14px; font-weight: 500; }
+    .toggle-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .toggle {
+      position: relative; width: 40px; height: 22px; cursor: pointer;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-track {
+      position: absolute; inset: 0; background: var(--border); border-radius: 99px; transition: background .2s;
+    }
+    .toggle input:checked ~ .toggle-track { background: var(--primary); }
+    .toggle-thumb {
+      position: absolute; width: 18px; height: 18px; background: #fff; border-radius: 50%;
+      top: 2px; left: 2px; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+    .toggle input:checked ~ .toggle-thumb { transform: translateX(18px); }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      background: #1e293b; color: #fff; padding: 12px 20px; border-radius: 10px;
+      font-size: 14px; font-weight: 500; box-shadow: 0 8px 24px rgba(0,0,0,.25);
+      opacity: 0; transform: translateY(12px); transition: opacity .25s, transform .25s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+<!-- ── Navigation ── -->
+<nav>
+  <div class="nav-logo">🚀 ProjectHub</div>
+  <div class="nav-links">
+    <button class="nav-link active" id="nav-tasks" onclick="switchNav('tasks')">任务</button>
+    <button class="nav-link" id="nav-members" onclick="switchNav('members')">成员</button>
+    <button class="nav-link" id="nav-settings" onclick="switchNav('settings')">设置</button>
+    <button class="nav-link" id="nav-reports" onclick="switchNav('reports')">报告</button>
+  </div>
+  <div class="nav-right">
+    <span>通知 <span class="badge" id="notif-badge">3</span></span>
+    <div class="avatar" title="当前用户: 张三">张</div>
+  </div>
+</nav>
+
+<div class="layout">
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">项目</div>
+      <div class="sidebar-item active" onclick="filterProject('all')"><span class="icon">📋</span> 全部任务 <span class="sidebar-count" id="count-all">6</span></div>
+      <div class="sidebar-item" onclick="filterProject('frontend')"><span class="icon">🎨</span> 前端 <span class="sidebar-count" id="count-frontend">3</span></div>
+      <div class="sidebar-item" onclick="filterProject('backend')"><span class="icon">⚙️</span> 后端 <span class="sidebar-count" id="count-backend">2</span></div>
+      <div class="sidebar-item" onclick="filterProject('design')"><span class="icon">✏️</span> 设计 <span class="sidebar-count" id="count-design">1</span></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">快捷操作</div>
+      <div class="sidebar-item" onclick="openAddModal()"><span class="icon">➕</span> 新建任务</div>
+      <div class="sidebar-item" onclick="showMyTasks()"><span class="icon">👤</span> 我的任务</div>
+      <div class="sidebar-item" onclick="showOverdue()"><span class="icon">⚠️</span> 逾期任务</div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main" id="main-content">
+
+    <!-- ===== TASKS TAB ===== -->
+    <div class="tab-panel active" id="panel-tasks">
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-label">总任务数</div>
+          <div class="stat-value" id="stat-total">6</div>
+          <div class="stat-meta stat-up">↑ 本周新增 2</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">进行中</div>
+          <div class="stat-value" style="color:var(--primary)" id="stat-doing">2</div>
+          <div class="stat-meta">占比 33%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">已完成</div>
+          <div class="stat-value" style="color:var(--success)" id="stat-done">2</div>
+          <div class="stat-meta stat-up">完成率 33%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">高优先级</div>
+          <div class="stat-value" style="color:var(--danger)" id="stat-high">2</div>
+          <div class="stat-meta stat-down">需重点关注</div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <input class="search-input" id="search-input" type="text" placeholder="🔍 搜索任务名称..." oninput="filterTasks()" />
+          <select class="filter-select" id="filter-status" onchange="filterTasks()">
+            <option value="">所有状态</option>
+            <option value="待处理">待处理</option>
+            <option value="进行中">进行中</option>
+            <option value="已完成">已完成</option>
+          </select>
+          <select class="filter-select" id="filter-priority" onchange="filterTasks()">
+            <option value="">所有优先级</option>
+            <option value="高">高</option>
+            <option value="中">中</option>
+            <option value="低">低</option>
+          </select>
+          <select class="filter-select" id="filter-project" onchange="filterTasks()">
+            <option value="">所有项目</option>
+            <option value="前端">前端</option>
+            <option value="后端">后端</option>
+            <option value="设计">设计</option>
+          </select>
+        </div>
+        <button class="btn btn-outline" onclick="clearFilters()">重置筛选</button>
+        <button class="btn btn-primary" id="add-task-btn" onclick="openAddModal()">＋ 新建任务</button>
+      </div>
+
+      <!-- Table -->
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">任务列表</span>
+          <span style="font-size:13px;color:var(--muted)" id="task-count-label">共 6 项</span>
+        </div>
+        <table id="task-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)"></th>
+              <th>任务名称</th>
+              <th>优先级</th>
+              <th>状态</th>
+              <th>负责人</th>
+              <th>截止日期</th>
+              <th>项目</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="task-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== MEMBERS TAB ===== -->
+    <div class="tab-panel" id="panel-members">
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:8px">团队成员</h2>
+      <p style="color:var(--muted);font-size:14px;margin-bottom:4px">当前项目共 5 名成员</p>
+      <div class="members" id="members-grid"></div>
+    </div>
+
+    <!-- ===== SETTINGS TAB ===== -->
+    <div class="tab-panel" id="panel-settings">
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:20px">项目设置</h2>
+
+      <div class="settings-card">
+        <div class="settings-title">基本信息</div>
+        <div class="form-group">
+          <label>项目名称</label>
+          <input type="text" id="setting-name" value="ProjectHub Demo" />
+        </div>
+        <div class="form-group">
+          <label>项目描述</label>
+          <textarea id="setting-desc">这是一个 Page Agent 功能体验 Demo，包含任务管理、成员管理等功能。</textarea>
+        </div>
+        <div class="form-group">
+          <label>截止日期</label>
+          <input type="date" id="setting-deadline" value="2026-06-30" />
+        </div>
+        <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+      </div>
+
+      <div class="settings-card">
+        <div class="settings-title">通知与偏好</div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">邮件通知</div>
+            <div class="toggle-desc">任务状态变更时发送邮件</div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="toggle-email" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">桌面推送</div>
+            <div class="toggle-desc">在桌面显示任务提醒</div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="toggle-desktop"><span class="toggle-track"></span><span class="toggle-thumb"></span></label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">逾期自动提醒</div>
+            <div class="toggle-desc">逾期任务每天自动提醒</div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="toggle-overdue" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">深色模式</div>
+            <div class="toggle-desc">切换界面主题</div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="toggle-dark"><span class="toggle-track"></span><span class="toggle-thumb"></span></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== REPORTS TAB ===== -->
+    <div class="tab-panel" id="panel-reports">
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:20px">项目报告</h2>
+      <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat-card">
+          <div class="stat-label">本周完成</div>
+          <div class="stat-value" style="color:var(--success)">4</div>
+          <div class="stat-meta stat-up">↑ 较上周 +2</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">平均完成时长</div>
+          <div class="stat-value">3.2 <span style="font-size:16px">天</span></div>
+          <div class="stat-meta">目标 ≤ 5 天</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">团队效率分</div>
+          <div class="stat-value" style="color:var(--primary)">87</div>
+          <div class="stat-meta stat-up">↑ 良好</div>
+        </div>
+      </div>
+      <div class="table-card" style="margin-top:20px">
+        <div class="table-header"><span class="table-title">成员贡献</span></div>
+        <table>
+          <thead><tr><th>成员</th><th>已完成</th><th>进行中</th><th>待处理</th><th>完成率</th></tr></thead>
+          <tbody>
+            <tr><td>张三</td><td>5</td><td>1</td><td>2</td><td>63%</td></tr>
+            <tr><td>李四</td><td>3</td><td>2</td><td>1</td><td>50%</td></tr>
+            <tr><td>王五</td><td>7</td><td>0</td><td>1</td><td>88%</td></tr>
+            <tr><td>赵六</td><td>2</td><td>3</td><td>3</td><td>25%</td></tr>
+            <tr><td>孙七</td><td>4</td><td>1</td><td>0</td><td>80%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Add Task Modal ── -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-title" id="modal-title">新建任务</div>
+    <div class="form-group">
+      <label for="task-name-input">任务名称 *</label>
+      <input type="text" id="task-name-input" placeholder="请输入任务名称" />
+    </div>
+    <div class="form-group">
+      <label for="task-desc-input">任务描述</label>
+      <textarea id="task-desc-input" placeholder="可选，描述任务详情..."></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="task-priority-select">优先级</label>
+        <select id="task-priority-select" class="form-select">
+          <option value="低">🟢 低</option>
+          <option value="中" selected>🟡 中</option>
+          <option value="高">🔴 高</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="task-status-select">状态</label>
+        <select id="task-status-select" class="form-select">
+          <option value="待处理" selected>待处理</option>
+          <option value="进行中">进行中</option>
+          <option value="已完成">已完成</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="task-assignee-select">负责人</label>
+        <select id="task-assignee-select" class="form-select">
+          <option>张三</option>
+          <option>李四</option>
+          <option>王五</option>
+          <option>赵六</option>
+          <option>孙七</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="task-deadline-input">截止日期</label>
+        <input type="date" id="task-deadline-input" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="task-project-select">所属项目</label>
+      <select id="task-project-select" class="form-select">
+        <option value="前端">前端</option>
+        <option value="后端">后端</option>
+        <option value="设计">设计</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="checkbox-row">
+        <input type="checkbox" id="task-urgent" />
+        <span>标记为紧急任务</span>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="cancel-btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" id="submit-task-btn" onclick="submitTask()">创建任务</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ── Page Agent (Demo CDN, free test API) ── -->
+<script src="https://registry.npmmirror.com/page-agent/1.5.6/files/dist/iife/page-agent.demo.js" crossorigin="true"></script>
+
+<script>
+// ──────────────────────────────────────────────────
+// Data
+// ──────────────────────────────────────────────────
+const COLORS = ['#6366f1','#22c55e','#f59e0b','#ef4444','#3b82f6','#8b5cf6'];
+const INITIALS = {'张三':'张','李四':'李','王五':'王','赵六':'赵','孙七':'孙'};
+
+let tasks = [
+  { id:1, name:'设计首页 UI 原型', desc:'包含 Banner、导航、功能模块', priority:'高', status:'已完成', assignee:'王五', deadline:'2026-03-01', project:'设计' },
+  { id:2, name:'开发用户登录接口', desc:'JWT 鉴权, 支持手机号/邮箱', priority:'高', status:'已完成', assignee:'张三', deadline:'2026-03-05', project:'后端' },
+  { id:3, name:'实现任务列表前端', desc:'Vue3 + TypeScript', priority:'中', status:'进行中', assignee:'李四', deadline:'2026-03-20', project:'前端' },
+  { id:4, name:'集成 Page Agent SDK', desc:'接入自然语言控制能力', priority:'中', status:'进行中', assignee:'张三', deadline:'2026-03-25', project:'前端' },
+  { id:5, name:'优化数据库查询性能', desc:'慢查询优化，添加索引', priority:'低', status:'待处理', assignee:'赵六', deadline:'2026-04-05', project:'后端' },
+  { id:6, name:'编写 E2E 测试用例', desc:'覆盖核心业务流程', priority:'低', status:'待处理', assignee:'孙七', deadline:'2026-04-10', project:'前端' },
+];
+
+const members = [
+  { name:'张三', role:'全栈开发', color:'#6366f1' },
+  { name:'李四', role:'前端开发', color:'#3b82f6' },
+  { name:'王五', role:'UI 设计师', color:'#8b5cf6' },
+  { name:'赵六', role:'后端开发', color:'#22c55e' },
+  { name:'孙七', role:'测试工程师', color:'#f59e0b' },
+];
+
+let currentFilter = { search:'', status:'', priority:'', project:'' };
+let editingId = null;
+
+// ──────────────────────────────────────────────────
+// Render
+// ──────────────────────────────────────────────────
+function renderTasks() {
+  const filtered = tasks.filter(t => {
+    if (currentFilter.search && !t.name.includes(currentFilter.search)) return false;
+    if (currentFilter.status && t.status !== currentFilter.status) return false;
+    if (currentFilter.priority && t.priority !== currentFilter.priority) return false;
+    if (currentFilter.project && t.project !== currentFilter.project) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('task-body');
+  tbody.innerHTML = filtered.map(t => `
+    <tr id="row-${t.id}">
+      <td><input type="checkbox" class="task-check" data-id="${t.id}"></td>
+      <td>
+        <div class="task-name">${t.name}</div>
+        <div class="task-desc">${t.desc || ''}</div>
+      </td>
+      <td><span class="priority-tag priority-${t.priority==='高'?'high':t.priority==='中'?'mid':'low'}">${t.priority}</span></td>
+      <td>
+        <span class="status-tag status-${t.status==='待处理'?'todo':t.status==='进行中'?'doing':'done'}">
+          <span class="status-dot"></span>${t.status}
+        </span>
+      </td>
+      <td>
+        <div class="assignee">
+          <div class="mini-avatar" style="background:${COLORS[Object.keys(INITIALS).indexOf(t.assignee)%COLORS.length]}">${INITIALS[t.assignee]||t.assignee[0]}</div>
+          ${t.assignee}
+        </div>
+      </td>
+      <td>${t.deadline}</td>
+      <td>${t.project}</td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-outline btn-sm" onclick="editTask(${t.id})">编辑</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTask(${t.id})">删除</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  // Update stats
+  document.getElementById('task-count-label').textContent = `共 ${filtered.length} 项`;
+  document.getElementById('stat-total').textContent = tasks.length;
+  document.getElementById('stat-doing').textContent = tasks.filter(t=>t.status==='进行中').length;
+  document.getElementById('stat-done').textContent  = tasks.filter(t=>t.status==='已完成').length;
+  document.getElementById('stat-high').textContent  = tasks.filter(t=>t.priority==='高').length;
+  document.getElementById('count-all').textContent  = tasks.length;
+  document.getElementById('count-frontend').textContent = tasks.filter(t=>t.project==='前端').length;
+  document.getElementById('count-backend').textContent  = tasks.filter(t=>t.project==='后端').length;
+  document.getElementById('count-design').textContent   = tasks.filter(t=>t.project==='设计').length;
+}
+
+function renderMembers() {
+  document.getElementById('members-grid').innerHTML = members.map(m => `
+    <div class="member-card">
+      <div class="member-avatar" style="background:${m.color}">${INITIALS[m.name]}</div>
+      <div>
+        <div class="member-name">${m.name}</div>
+        <div class="member-role">${m.role}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ──────────────────────────────────────────────────
+// Filter
+// ──────────────────────────────────────────────────
+function filterTasks() {
+  currentFilter.search   = document.getElementById('search-input').value;
+  currentFilter.status   = document.getElementById('filter-status').value;
+  currentFilter.priority = document.getElementById('filter-priority').value;
+  currentFilter.project  = document.getElementById('filter-project').value;
+  renderTasks();
+}
+function clearFilters() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('filter-status').value = '';
+  document.getElementById('filter-priority').value = '';
+  document.getElementById('filter-project').value = '';
+  currentFilter = { search:'', status:'', priority:'', project:'' };
+  renderTasks();
+}
+function filterProject(p) {
+  document.getElementById('filter-project').value = p === 'all' ? '' : (p==='frontend'?'前端':p==='backend'?'后端':'设计');
+  filterTasks();
+}
+function showMyTasks() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('filter-status').value = '';
+  document.getElementById('filter-priority').value = '';
+  document.getElementById('filter-project').value = '';
+  currentFilter = { search:'', status:'', priority:'', project:'' };
+  const filtered = tasks.filter(t => t.assignee === '张三');
+  const tbody = document.getElementById('task-body');
+  tbody.innerHTML = filtered.map(t => `
+    <tr id="row-${t.id}">
+      <td><input type="checkbox" class="task-check" data-id="${t.id}"></td>
+      <td><div class="task-name">${t.name}</div><div class="task-desc">${t.desc||''}</div></td>
+      <td><span class="priority-tag priority-${t.priority==='高'?'high':t.priority==='中'?'mid':'low'}">${t.priority}</span></td>
+      <td><span class="status-tag status-${t.status==='待处理'?'todo':t.status==='进行中'?'doing':'done'}"><span class="status-dot"></span>${t.status}</span></td>
+      <td><div class="assignee"><div class="mini-avatar" style="background:${COLORS[0]}">${INITIALS['张三']}</div>张三</div></td>
+      <td>${t.deadline}</td><td>${t.project}</td>
+      <td><div class="action-btns"><button class="btn btn-outline btn-sm" onclick="editTask(${t.id})">编辑</button><button class="btn btn-danger btn-sm" onclick="deleteTask(${t.id})">删除</button></div></td>
+    </tr>
+  `).join('');
+  document.getElementById('task-count-label').textContent = `共 ${filtered.length} 项（我的任务）`;
+  showToast('显示张三的任务');
+}
+function showOverdue() {
+  const today = new Date().toISOString().slice(0,10);
+  const filtered = tasks.filter(t => t.deadline < today && t.status !== '已完成');
+  showToast(`逾期任务 ${filtered.length} 项`);
+  renderTasks();
+}
+
+// ──────────────────────────────────────────────────
+// Modal
+// ──────────────────────────────────────────────────
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = '新建任务';
+  document.getElementById('submit-task-btn').textContent = '创建任务';
+  document.getElementById('task-name-input').value = '';
+  document.getElementById('task-desc-input').value = '';
+  document.getElementById('task-priority-select').value = '中';
+  document.getElementById('task-status-select').value = '待处理';
+  document.getElementById('task-assignee-select').value = '张三';
+  document.getElementById('task-deadline-input').value = '';
+  document.getElementById('task-project-select').value = '前端';
+  document.getElementById('task-urgent').checked = false;
+  document.getElementById('modal-overlay').classList.add('open');
+  document.getElementById('task-name-input').focus();
+}
+function editTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = '编辑任务';
+  document.getElementById('submit-task-btn').textContent = '保存修改';
+  document.getElementById('task-name-input').value = t.name;
+  document.getElementById('task-desc-input').value = t.desc || '';
+  document.getElementById('task-priority-select').value = t.priority;
+  document.getElementById('task-status-select').value = t.status;
+  document.getElementById('task-assignee-select').value = t.assignee;
+  document.getElementById('task-deadline-input').value = t.deadline;
+  document.getElementById('task-project-select').value = t.project;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+function submitTask() {
+  const name = document.getElementById('task-name-input').value.trim();
+  if (!name) { showToast('⚠️ 请输入任务名称'); return; }
+  if (editingId) {
+    const t = tasks.find(x => x.id === editingId);
+    t.name = name;
+    t.desc = document.getElementById('task-desc-input').value;
+    t.priority = document.getElementById('task-priority-select').value;
+    t.status = document.getElementById('task-status-select').value;
+    t.assignee = document.getElementById('task-assignee-select').value;
+    t.deadline = document.getElementById('task-deadline-input').value;
+    t.project = document.getElementById('task-project-select').value;
+    showToast('✅ 任务已更新');
+  } else {
+    const newTask = {
+      id: Date.now(), name,
+      desc: document.getElementById('task-desc-input').value,
+      priority: document.getElementById('task-priority-select').value,
+      status: document.getElementById('task-status-select').value,
+      assignee: document.getElementById('task-assignee-select').value,
+      deadline: document.getElementById('task-deadline-input').value,
+      project: document.getElementById('task-project-select').value,
+    };
+    tasks.push(newTask);
+    showToast('✅ 任务已创建');
+  }
+  closeModal();
+  renderTasks();
+}
+function deleteTask(id) {
+  tasks = tasks.filter(t => t.id !== id);
+  renderTasks();
+  showToast('🗑️ 任务已删除');
+}
+
+// ──────────────────────────────────────────────────
+// Select all
+// ──────────────────────────────────────────────────
+function toggleSelectAll(cb) {
+  document.querySelectorAll('.task-check').forEach(c => c.checked = cb.checked);
+}
+
+// ──────────────────────────────────────────────────
+// Nav tabs
+// ──────────────────────────────────────────────────
+function switchNav(tab) {
+  ['tasks','members','settings','reports'].forEach(t => {
+    document.getElementById('nav-'+t)?.classList.remove('active');
+    document.getElementById('panel-'+t)?.classList.remove('active');
+  });
+  document.getElementById('nav-'+tab)?.classList.add('active');
+  document.getElementById('panel-'+tab)?.classList.add('active');
+  if (tab === 'members') renderMembers();
+}
+
+// ──────────────────────────────────────────────────
+// Settings
+// ──────────────────────────────────────────────────
+function saveSettings() {
+  const name = document.getElementById('setting-name').value;
+  showToast(`✅ 设置已保存：${name}`);
+}
+
+// ──────────────────────────────────────────────────
+// Toast
+// ──────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ──────────────────────────────────────────────────
+// Close modal on overlay click
+// ──────────────────────────────────────────────────
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// ──────────────────────────────────────────────────
+// Init
+// ──────────────────────────────────────────────────
+renderTasks();
+</script>
+
+</body>
+</html>

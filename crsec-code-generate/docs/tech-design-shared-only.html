@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shared-Only GraphRAG 技术设计</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #0b0f14;
+      --panel: #0f1722;
+      --panel-2: #111b2a;
+      --text: #e6edf3;
+      --muted: #9db1c5;
+      --accent: #4ea1ff;
+      --border: #1f2a3a;
+      --code: #0b1220;
+    }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+    .container { max-width: 1040px; margin: 0 auto; padding: 36px 24px 72px; }
+    .hero { background: linear-gradient(135deg, #0f1722, #0b1220); border: 1px solid var(--border); border-radius: 14px; padding: 24px 28px; box-shadow: 0 0 0 1px rgba(78,161,255,0.1); }
+    .hero h1 { margin: 0 0 10px; font-size: 30px; letter-spacing: 0.3px; }
+    .hero p { margin: 0; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 20px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; box-shadow: inset 0 0 0 1px rgba(78,161,255,0.06); }
+    .content { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin-top: 20px; }
+    h1, h2, h3 { margin-top: 20px; }
+    h2 { color: #d5e8ff; }
+    a { color: var(--accent); }
+    pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    pre { background: var(--code); padding: 12px; border-radius: 8px; overflow: auto; border: 1px solid var(--border); }
+    code { background: rgba(78,161,255,0.08); padding: 2px 6px; border-radius: 6px; }
+    table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+    th, td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; }
+    th { background: #0c1422; color: #b7d6ff; }
+    .mermaid { background: #0c1422; border: 1px solid var(--border); border-radius: 10px; padding: 8px; }
+    .section-title { color: #9dd1ff; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 8px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded', () => { mermaid.initialize({ startOnLoad: true, theme: 'dark' }); });</script>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <h1>Shared-Only GraphRAG 技术设计</h1>
+      <p>一期：仅公共层（Shared）能力，个人习惯入库默认关闭。</p>
+    </div>
+
+    <div class="section-title">Architecture & Flows</div>
+    <div class="grid">
+      <div class="card"><h2>架构总览</h2>
+<div class="mermaid">
+flowchart LR
+  A["Shared Docs"] --> B["Ingestion Service"]
+  B --> C["Qdrant (Shared)"]
+  B --> D["Neo4j Graph"]
+  E["IDE / Claude Code"] --> F["MCP Server"]
+  F --> G["RAG Service"]
+  G --> C
+  G --> D
+  G --> H["LLM"]
+</div>
+</div>
+      <div class="card"><h2>Shared-only RAG 流程</h2>
+<div class="mermaid">
+flowchart TD
+  Q["User Query"] --> R["Qdrant 检索 (Shared)"]
+  R --> G["Graph 依赖检查"]
+  G --> P["Prompt 组装"]
+  P --> L["LLM 生成"]
+  L --> O["Answer + Citations"]
+</div>
+</div>
+      <div class="card"><h2>入库流水线</h2>
+<div class="mermaid">
+flowchart LR
+  D["Docs Folder"] --> P["Parser"]
+  P --> C["Chunker"]
+  C --> E["Embedder"]
+  E --> Q["Qdrant Upsert"]
+  P --> M["Component/Standard Map"]
+  M --> N["Neo4j Upsert"]
+</div>
+</div>
+      <div class="card"><h2>模块关系</h2>
+<div class="mermaid">
+flowchart TB
+  Ingestion --> Retrieval
+  Ingestion --> Graph
+  Retrieval --> RAG
+  Graph --> RAG
+  RAG --> MCP
+  MCP --> Client["IDE / Claude Code"]
+</div>
+</div>
+      <div class="card"><h2>部署拓扑</h2>
+<div class="mermaid">
+flowchart LR
+  MCP["MCP Server"] --> RAG["RAG Service"]
+  RAG --> QD["Qdrant"]
+  RAG --> NG["Neo4j"]
+  RAG --> LLM["LLM"]
+  ING["Ingestion Service"] --> QD
+  ING --> NG
+</div>
+</div>
+    </div>
+
+    <div class="section-title">Specification</div>
+    <div class="content">
+      <h1>多层级 GraphRAG 系统技术设计（一期：Shared-only）</h1>
+<h2>1. 背景与目标</h2>
+<p>企业 AI 编程既需遵守统一规范，又希望兼容个人习惯。 一期目标：**只实现共享规范与组件知识的闭环能力**，个人习惯入库与检索通过开关关闭，接口保持兼容。</p>
+<h2>2. 目标与非目标</h2>
+<h3>2.1 目标</h3>
+<ul>
+<li>构建 Shared 知识库（规范/组件/最佳实践）向量检索能力</li>
+<li>构建组件依赖图谱能力</li>
+<li>提供 MCP Server 接口对接编程工具</li>
+<li>支持 RAG 推理流程（Shared-only）</li>
+</ul>
+<h3>2.2 非目标</h3>
+<ul>
+<li>不做个人习惯入库与个性化检索</li>
+<li>不做权限体系与计费体系</li>
+<li>不做多模型路由优化</li>
+</ul>
+<h2>3. 总体架构</h2>
+<pre><code>[Shared Docs] --&gt; Ingestion --&gt; Qdrant (Shared)
+                     |
+                     +--&gt; Neo4j (Component Graph)
+
+[IDE/Claude Code] -- MCP --&gt; RAG Service --&gt; LLM
+                          |            |
+                          |            +--&gt; Qdrant Shared
+                          +--&gt; Neo4j Graph</code></pre>
+<h2>4. 配置与开关</h2>
+<ul>
+<li>`ENABLE_PRIVATE_INGESTION=false`（默认）</li>
+<li>行为规则：</li>
+<li>所有私有入库路径必须 guard</li>
+<li>`get_personal_context` 返回空集合或“禁用说明”</li>
+<li>Prompt 仅引用 Shared</li>
+</ul>
+<h2>5. 数据模型设计</h2>
+<h3>5.1 Qdrant（Shared-only）</h3>
+<p>**Collection：`code_knowledge`**</p>
+<p>| 字段 | 类型 | 说明 | | --- | --- | --- | | vector | float[] | embedding 向量 | | payload.doc_type | string | 标准/组件/FAQ/示例 | | payload.source | string | 来源文件或链接 | | payload.language | string | 语言 | | payload.tags | array | 标签 | | payload.standard_level | string | 强制/推荐 |</p>
+<h3>5.2 Neo4j 图谱</h3>
+<p>**Nodes**</p>
+<ul>
+<li>`Component`：组件</li>
+<li>`Standard`：规范</li>
+</ul>
+<p>**Relationships**</p>
+<ul>
+<li>`(Component)-[:DEPENDS_ON]-&gt;(Component)`</li>
+<li>`(Component)-[:COMPLIES_WITH]-&gt;(Standard)`</li>
+</ul>
+<h2>6. 入库流程（Shared-only）</h2>
+<p>1. 文档预处理（清洗/去噪/结构化） 2. 分块（Chunking）策略：按段落或 API 结构切分 3. 生成 embedding 4. 写入 Qdrant Shared 5. 依赖关系与规范映射写入 Neo4j</p>
+<p>**验收标准**</p>
+<ul>
+<li>Shared 文档可检索命中</li>
+<li>组件依赖可查询</li>
+</ul>
+<h2>7. 推理流程（RAG）</h2>
+<p>1. Query → Qdrant Shared 检索 2. 检索结果增强：Neo4j 依赖检查 3. Prompt 组装</p>
+<p>**Prompt 模板关键约束**</p>
+<ul>
+<li>规范优先</li>
+<li>组件依赖必须遵守</li>
+</ul>
+<h2>8. MCP Server 接口（一期）</h2>
+<h3>8.1 `retrieve_standards(query)`</h3>
+<ul>
+<li>输入：query</li>
+<li>输出：Shared 规范/组件片段 TopK</li>
+</ul>
+<h3>8.2 `check_graph_dependency(component_name)`</h3>
+<ul>
+<li>输入：组件名</li>
+<li>输出：上游/下游依赖</li>
+</ul>
+<h3>8.3 `get_personal_context(user_id, query)`</h3>
+<ul>
+<li>一期行为：返回空集合 + 禁用说明</li>
+</ul>
+<h2>9. API 规范（示例）</h2>
+<pre><code class="language-json">{
+  &quot;query&quot;: &quot;如何使用 Button 组件&quot;,
+  &quot;top_k&quot;: 5
+}</code></pre>
+<p>返回：</p>
+<pre><code class="language-json">{
+  &quot;results&quot;: [
+    {
+      &quot;text&quot;: &quot;...&quot;,
+      &quot;source&quot;: &quot;component-doc.md&quot;,
+      &quot;score&quot;: 0.82
+    }
+  ]
+}</code></pre>
+<h2>10. 评测与质量保障</h2>
+<ul>
+<li>指标：命中率、答案规范度、引用覆盖率</li>
+<li>最小评测集：10-20 条核心规范问题</li>
+</ul>
+<h2>11. 里程碑</h2>
+<ul>
+<li>M1：Shared 向量检索</li>
+<li>M2：Neo4j 图谱依赖</li>
+<li>M3：RAG 推理服务</li>
+<li>M4：MCP Server 对接</li>
+<li>M5：评测与回归</li>
+</ul>
+<h2>12. 风险与对策</h2>
+<ul>
+<li>**风险**：规范文档结构不一致 → 需统一清洗规范</li>
+<li>**风险**：组件依赖缺失 → 必须补齐依赖映射表</li>
+<li>**风险**：检索噪声高 → 改进 chunk 与标签</li>
+</ul>
+<p>---</p>
+<h1>13. 模块设计（Shared-only）</h1>
+<h2>13.1 Ingestion Service（入库服务）</h2>
+<p>**职责**</p>
+<ul>
+<li>文档清洗、分块、embedding 生成、写入 Qdrant</li>
+<li>构建组件依赖与规范映射写入 Neo4j</li>
+</ul>
+<p>**输入**</p>
+<ul>
+<li>文档文件（markdown/HTML/JSON）</li>
+</ul>
+<p>**输出**</p>
+<ul>
+<li>Qdrant: 向量 + payload</li>
+<li>Neo4j: `Component`、`Standard` 与依赖关系</li>
+</ul>
+<p>**关键流程** 1. 解析文档 → 结构化片段 2. 分块 → chunk list 3. embedding 生成 4. 写入 Qdrant 5. 依赖映射写入 Neo4j</p>
+<h2>13.2 Retrieval Service（检索服务）</h2>
+<p>**职责**</p>
+<ul>
+<li>处理 query</li>
+<li>向 Qdrant 查询 TopK</li>
+<li>结构化结果并返回</li>
+</ul>
+<p>**输入**</p>
+<ul>
+<li>`query`, `top_k`</li>
+</ul>
+<p>**输出**</p>
+<ul>
+<li>`results[]`（text, source, score）</li>
+</ul>
+<h2>13.3 Graph Service（图谱服务）</h2>
+<p>**职责**</p>
+<ul>
+<li>组件依赖查询</li>
+<li>组件规范查询</li>
+<li>冲突校验（一期可选）</li>
+</ul>
+<p>**输入**</p>
+<ul>
+<li>`component_name`</li>
+</ul>
+<p>**输出**</p>
+<ul>
+<li>`upstream`, `downstream`, `standards`</li>
+</ul>
+<h2>13.4 RAG Service（推理服务）</h2>
+<p>**职责**</p>
+<ul>
+<li>聚合检索 + 图谱</li>
+<li>组装 Prompt</li>
+<li>调用 LLM</li>
+</ul>
+<p>**输出**</p>
+<ul>
+<li>最终回答 + 引用</li>
+</ul>
+<h2>13.5 MCP Server</h2>
+<p>**职责**</p>
+<ul>
+<li>提供标准 MCP 接口</li>
+<li>适配 IDE / Claude Code</li>
+</ul>
+<p>**接口**</p>
+<ul>
+<li>`retrieve_standards`</li>
+<li>`check_graph_dependency`</li>
+<li>`get_personal_context`（一期返回空）</li>
+</ul>
+<p>---</p>
+<h1>14. 目录结构建议</h1>
+<pre><code>crsec-code-generate/
+  ├─ ingestion/
+  │   ├─ parser/
+  │   ├─ chunker/
+  │   ├─ embedder/
+  │   └─ writer/
+  ├─ retrieval/
+  ├─ graph/
+  ├─ rag/
+  ├─ mcp/
+  ├─ configs/
+  ├─ scripts/
+  └─ docs/</code></pre>
+<p>---</p>
+<h1>15. 关键接口与数据结构</h1>
+<h2>15.1 Qdrant 写入结构</h2>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;uuid&quot;,
+  &quot;vector&quot;: [0.1, 0.2, ...],
+  &quot;payload&quot;: {
+    &quot;doc_type&quot;: &quot;component&quot;,
+    &quot;source&quot;: &quot;button.md&quot;,
+    &quot;language&quot;: &quot;typescript&quot;,
+    &quot;tags&quot;: [&quot;ui&quot;, &quot;button&quot;],
+    &quot;standard_level&quot;: &quot;required&quot;
+  }
+}</code></pre>
+<h2>15.2 检索返回结构</h2>
+<pre><code class="language-json">{
+  &quot;results&quot;: [
+    {
+      &quot;text&quot;: &quot;...&quot;,
+      &quot;source&quot;: &quot;button.md&quot;,
+      &quot;score&quot;: 0.83,
+      &quot;doc_type&quot;: &quot;component&quot;
+    }
+  ]
+}</code></pre>
+<h2>15.3 MCP 接口规范（伪代码）</h2>
+<pre><code class="language-ts">retrieve_standards(query: string, top_k?: number): Result[]
+check_graph_dependency(component_name: string): DependencyGraph
+get_personal_context(user_id: string, query: string): Result[] // returns []</code></pre>
+<p>---</p>
+<h1>16. 图谱查询示例（Neo4j）</h1>
+<p>**依赖查询**</p>
+<pre><code class="language-cypher">MATCH (c:Component {name: $name})-[:DEPENDS_ON]-&gt;(d:Component)
+RETURN d.name</code></pre>
+<p>**规范查询**</p>
+<pre><code class="language-cypher">MATCH (c:Component {name: $name})-[:COMPLIES_WITH]-&gt;(s:Standard)
+RETURN s.name, s.level</code></pre>
+<p>---</p>
+<h1>17. Qdrant 索引策略（Shared-only）</h1>
+<ul>
+<li>单 collection `code_knowledge`</li>
+<li>向量：embedding 模型维度（与 LLM embedding 一致）</li>
+<li>payload index：`doc_type`、`standard_level`、`language`</li>
+</ul>
+<p>---</p>
+<h1>18. 配置项清单（一期）</h1>
+<pre><code class="language-yaml">ENABLE_PRIVATE_INGESTION: false
+QDRANT_URL: http://qdrant:6333
+NEO4J_URL: bolt://neo4j:7687
+EMBEDDING_MODEL: text-embedding-v4
+TOP_K: 5</code></pre>
+<p>---</p>
+<h1>19. 部署拓扑（一期）</h1>
+<pre><code>[Ingestion Service] --&gt; Qdrant
+                    --&gt; Neo4j
+[RAG Service] ------&gt; Qdrant + Neo4j
+[MCP Server] -------&gt; RAG Service</code></pre>
+<p>---</p>
+<h1>20. 测试策略</h1>
+<ul>
+<li>单元测试：chunk/embedding/payload 映射</li>
+<li>集成测试：Qdrant 入库与检索</li>
+<li>回归测试：基准问题集</li>
+</ul>
+<p>---</p>
+<h1>21. 监控与日志</h1>
+<ul>
+<li>Qdrant：检索耗时、命中率</li>
+<li>Neo4j：查询耗时、失败率</li>
+<li>MCP：调用成功率</li>
+</ul>
+<p>---</p>
+<h1>22. 二期展望（非一期范围）</h1>
+<ul>
+<li>开启 `ENABLE_PRIVATE_INGESTION`</li>
+<li>添加用户维度 partition</li>
+<li>在 RAG 中引入差分偏好</li>
+</ul>
+<p>---</p>
+<h1>23. 详细实现设计</h1>
+<h2>23.1 文档解析与分块</h2>
+<p>**目标**：将各种格式文档统一为结构化片段，并控制 chunk 颗粒度。</p>
+<p>**规则**</p>
+<ul>
+<li>markdown：按标题层级 + 段落切分</li>
+<li>HTML：按 `h1-h3` + `p` 切分</li>
+<li>API 参考：按 endpoint/类/方法切分</li>
+</ul>
+<p>**chunk 约束**</p>
+<ul>
+<li>最小 200 字符，最大 1200 字符</li>
+<li>超长段落强制再切分</li>
+<li>chunk 必须携带 `doc_type/source/tags/standard_level`</li>
+</ul>
+<h2>23.2 Embedding 生成</h2>
+<p>**输入**：chunk.text **输出**：vector **失败重试**：3 次，指数退避</p>
+<h2>23.3 Qdrant 写入策略</h2>
+<ul>
+<li>主键：uuid</li>
+<li>批量写入：单批 &lt;= 200</li>
+<li>幂等：由 `source + offset` 生成 id</li>
+</ul>
+<h2>23.4 Neo4j 写入策略</h2>
+<ul>
+<li>Component 节点：`name`, `category`, `version`</li>
+<li>Standard 节点：`name`, `level`</li>
+<li>依赖关系：来自组件清单映射表</li>
+</ul>
+<p>---</p>
+<h1>24. MCP Server 设计细节</h1>
+<h2>24.1 输入校验</h2>
+<ul>
+<li>`query`：非空字符串，最长 2000 字符</li>
+<li>`top_k`：1-20</li>
+</ul>
+<h2>24.2 错误返回</h2>
+<p>统一结构：</p>
+<pre><code class="language-json">{
+  &quot;error&quot;: {
+    &quot;code&quot;: &quot;INVALID_ARGUMENT&quot;,
+    &quot;message&quot;: &quot;top_k must be between 1 and 20&quot;
+  }
+}</code></pre>
+<h2>24.3 一期默认行为</h2>
+<ul>
+<li>`get_personal_context`：返回 `results: []` + `message: &quot;private ingestion disabled&quot;`</li>
+</ul>
+<p>---</p>
+<h1>25. RAG Prompt 设计</h1>
+<p>**System**</p>
+<ul>
+<li>你是高级架构师</li>
+<li>必须遵守企业规范</li>
+</ul>
+<p>**Context**</p>
+<ul>
+<li>Shared 检索结果</li>
+<li>组件依赖关系</li>
+</ul>
+<p>**Rules** 1. 若规范冲突，必须以规范为准 2. 若依赖缺失，提示需要补齐组件 3. 给出引用来源</p>
+<p>---</p>
+<h1>26. 数据治理与安全</h1>
+<ul>
+<li>文档来源需标记 `source`</li>
+<li>不允许写入敏感数据</li>
+<li>私有习惯数据一期禁止写入</li>
+</ul>
+<p>---</p>
+<h1>27. 回滚与降级</h1>
+<ul>
+<li>Qdrant 不可用 → 返回空结果 + 降级提示</li>
+<li>Neo4j 不可用 → 仅做向量检索</li>
+<li>LLM 不可用 → 返回检索结果摘要</li>
+</ul>
+<p>---</p>
+<h1>28. 发布与灰度</h1>
+<ul>
+<li>仅内测使用</li>
+<li>先对少量开发团队开放</li>
+<li>监控指标稳定后扩大范围</li>
+</ul>
+<p>---</p>
+<h1>29. 项目交付物清单</h1>
+<ul>
+<li>`docs/tech-design-shared-only.md`</li>
+<li>入库脚本 + README</li>
+<li>MCP Server 可运行版本</li>
+<li>评测报告</li>
+</ul>
+<p>---</p>
+<h1>30. 下一步（可选）</h1>
+<ul>
+<li>输出更细的模块级接口定义</li>
+<li>细化到函数级实现任务清单</li>
+<li>增加 PoC Demo</li>
+</ul>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "sdk-docs": {
+      "type": "sse",
+      "url": "http://localhost:3002/sse"
+    },
+    "sdk-docs-streamable": {
+      "type": "streamable-http",
+      "url": "http://localhost:3002/mcp"
+    }
+  }
+}

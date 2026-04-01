@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(python cli/index_docs.py --docs-dir ./docs --verbose)",
+      "Bash(python index_docs.py --docs-dir ./docs --verbose)",
+      "Bash(python test_embedding.py)",
+      "Bash(python tests/test_embedding.py)",
+      "Bash(python -m pytest tests/test_embedding.py -v -s)",
+      "Bash(pip install openai -q)",
+      "Bash(pip install -U qdrant-client -q)",
+      "Bash(python tests/test_qdrant.py)",
+      "Bash(python -c \"from qdrant_client import QdrantClient; import inspect; c = QdrantClient\\('':memory:''\\); methods = [m for m in dir\\(c\\) if ''search'' in m.lower\\(\\) or ''query'' in m.lower\\(\\)]; print\\(''\\\\n''.join\\(sorted\\(set\\(methods\\)\\)\\)\\)\")",
+      "Bash(python test_index_one.py)"
+    ]
+  }
+}
