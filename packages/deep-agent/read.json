@@ -1,0 +1,5 @@
+{
+  "type": "TOOL_CALL_RESULT",
+  "toolCallId": "055da096-6fc0-48cb-80b9-3c048705626c",
+  "result": "{\"location\":\"Nanjing, China\",\"temperature\":\"14.9°C\",\"feelsLike\":\"14.9°C\",\"humidity\":\"90%\",\"wind\":\"7.9 km/h\",\"windDirection\":\"273°\",\"conditions\":\"Overcast\",\"precipitation\":\"0 mm\",\"time\":\"2026-04-03T23:30\"}"
+}

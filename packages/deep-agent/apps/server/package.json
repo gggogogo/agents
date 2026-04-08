@@ -1,0 +1,36 @@
+{
+  "name": "server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@ag-ui/client": "0.0.48",
+    "@ag-ui/core": "0.0.48",
+    "@copilotkit/runtime": "^1.52.1",
+    "@deep-agent/weather-client": "workspace:*",
+    "@hono/node-server": "^1.14.1",
+    "@langchain/core": "^1.1.39",
+    "@langchain/langgraph": "^1.2.7",
+    "@langchain/openai": "^1.4.2",
+    "dotenv": "^16.4.7",
+    "gray-matter": "^4.0.3",
+    "hono": "^4.7.6",
+    "openai": "^4.85.4",
+    "rxjs": "7.8.1",
+    "uuid": "^11.1.0",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.2"
+  }
+}

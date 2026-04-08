@@ -1,0 +1,7 @@
+{
+  "graphs": {
+    "chat": "./src/graph.ts:graph"
+  },
+  "env": "../../.env",
+  "node_version": "20"
+}
