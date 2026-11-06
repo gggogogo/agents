@@ -1,23 +1,22 @@
-import { Agent } from "@earendil-works/pi-agent-core";
-import {
-  createModels,
-  createProvider,
-  envApiKeyAuth,
-} from "@earendil-works/pi-ai";
+
+import { createModels, createProvider } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
-import { DEEPSEEK_MODELS } from "@earendil-works/pi-ai/providers/deepseek.models";
-import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
+
+const AUTH_TOKEN =
+  "gpustack_03fb373bcb95da2a_73e036e5a9bd503dd5c9160bb0c91910";
 
 const crsecDeepseekProvider = createProvider({
   id: "crsec-deepseek",
   name: "Deepseek",
   baseUrl: "http://115.190.106.124:8080/v1",
-  headers: {
-    Authorization:
-      "Bearer gpustack_03fb373bcb95da2a_73e036e5a9bd503dd5c9160bb0c91910",
-  },
   auth: {
-    apiKey: envApiKeyAuth("DeepSeek API key", ["CRSEC_DEEPSEEK_API_KEY"]),
+    apiKey: {
+      name: "Static bearer token",
+      resolve: async () => ({
+        auth: {}, // 认证信息通过 model 级 headers 携带
+        source: "static token",
+      }),
+    },
   },
   models: [
     {
@@ -28,6 +27,9 @@ const crsecDeepseekProvider = createProvider({
       provider: "crsec-deepseek",
       reasoning: true,
       input: ["text"],
+      headers: {
+        Authorization: `Bearer ${AUTH_TOKEN}`,
+      },
       cost: { input: 0.14, output: 0.28, cacheRead: 0.0028, cacheWrite: 0 },
       contextWindow: 1000000,
       maxTokens: 384000,
@@ -49,10 +51,7 @@ const crsecDeepseekProvider = createProvider({
   ],
   api: openAICompletionsApi(),
 });
-console.log(
-  "FBI WARNING>>>>>>>> ~ index.ts:23 ~ Object.values(DEEPSEEK_MODELS):",
-  Object.values(DEEPSEEK_MODELS),
-);
+
 const models = createModels();
 
 // Set the crsec-deepseek provider as the default
